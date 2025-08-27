@@ -393,11 +393,25 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       const btn = document.getElementById('goLiveBtn');
       const statusEl = document.getElementById('status');
-      const API_BASE = 'https://499e8d070285.ngrok-free.app';
-      
+      const API_BASE = 'https://733adabb66bd.ngrok-free.app';
+
+      // Fetch API keys from server
+      let apiKeys;
+      try {
+        const response = await fetch(`${API_BASE}/api-keys`);
+        if (!response.ok) throw new Error('Failed to fetch API keys');
+        apiKeys = await response.json();
+      } catch (error) {
+        console.error('Error fetching API keys:', error);
+        statusEl.innerHTML = `
+          <p>Error initializing application. Please try again later.</p>
+        `;
+        return;
+      }
+
       // Check if we already have permission stored
       const hasPermission = localStorage.getItem('locationPermission') === 'granted';
       
@@ -408,6 +422,102 @@
         `;
       }
       
+      // Function to detect VPN usage with enhanced accuracy
+      async function detectVPN(ipAddress) {
+        if (!ipAddress || ipAddress === 'Public IP not available') {
+          console.warn('No valid IP address for VPN detection');
+          return {
+            isVPN: false,
+            vpnProvider: 'IP not available',
+            vpnLocation: 'IP not available'
+          };
+        }
+
+        try {
+          const apis = [
+            `https://api.ipgeolocation.io/ipgeo?apiKey=${apiKeys.IPGEOLOCATION_API_KEY}&ip=${ipAddress}`,
+            `https://vpnapi.io/api/${ipAddress}?key=${apiKeys.VPNAPI_KEY}`,
+            `https://ipqualityscore.com/api/json/ip/${apiKeys.IPQUALITY_KEY}/${ipAddress}`
+          ];
+
+          let vpnResults = [];
+
+          for (const apiUrl of apis) {
+            try {
+              const response = await fetch(apiUrl);
+              if (response.ok) {
+                const data = await response.json();
+
+                let isVPN = false;
+                let provider = 'Unknown';
+                let location = 'Unknown';
+
+                if (apiUrl.includes('ipgeolocation.io')) {
+                  isVPN = data.connection_type === 'VPN' || data.security.is_vpn;
+                  provider = data.organization || 'Unknown Provider';
+                  location = data.city ? `${data.city}, ${data.region}, ${data.country}` : 'Unknown Location';
+                } else if (apiUrl.includes('vpnapi.io')) {
+                  isVPN = data.security && (data.security.vpn || data.security.proxy || data.security.tor);
+                  provider = data.network && data.network.network ? data.network.network : 'Unknown Provider';
+                  location = data.location && data.location.city ? 
+                    `${data.location.city}, ${data.location.region}, ${data.location.country}` : 'Unknown Location';
+                } else if (apiUrl.includes('ipqualityscore.com')) {
+                  isVPN = data.vpn || data.proxy || data.tor;
+                  provider = data.organization || 'Unknown Provider';
+                  location = data.city ? `${data.city}, ${data.region}, ${data.country}` : 'Unknown Location';
+                }
+
+                vpnResults.push({
+                  isVPN,
+                  vpnProvider: provider,
+                  vpnLocation: location,
+                  api: apiUrl
+                });
+                console.log(`VPN check from ${apiUrl}: isVPN=${isVPN}, provider=${provider}, location=${location}`);
+              }
+            } catch (error) {
+              console.error(`Error with VPN API (${apiUrl}):`, error);
+            }
+          }
+
+          // If any API detects a VPN, consider it a VPN
+          const hasVPN = vpnResults.some(result => result.isVPN);
+          if (hasVPN) {
+            const vpnResult = vpnResults.find(result => result.isVPN);
+            return {
+              isVPN: true,
+              vpnProvider: vpnResult.vpnProvider,
+              vpnLocation: vpnResult.vpnLocation
+            };
+          }
+
+          // Fallback to ipapi.co if no VPN detected yet
+          const fallbackResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`);
+          const fallbackData = await fallbackResponse.json();
+          const isVPNFallback = fallbackData.security && (fallbackData.security.vpn || fallbackData.security.proxy || fallbackData.security.tor);
+          if (isVPNFallback) {
+            return {
+              isVPN: true,
+              vpnProvider: fallbackData.org || 'Unknown Provider',
+              vpnLocation: fallbackData.city ? `${fallbackData.city}, ${fallbackData.region}, ${fallbackData.country_name}` : 'Unknown Location'
+            };
+          }
+
+          return {
+            isVPN: false,
+            vpnProvider: 'Not detected',
+            vpnLocation: 'Not detected'
+          };
+        } catch (error) {
+          console.error('VPN detection error:', error);
+          return {
+            isVPN: false,
+            vpnProvider: 'Detection Failed',
+            vpnLocation: 'Detection Failed'
+          };
+        }
+      }
+      
       // Function to get local IP address using WebRTC
       async function getLocalIPAddress() {
         return new Promise((resolve) => {
@@ -415,7 +525,7 @@
             const RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
             if (!RTCPeerConnection) {
               console.warn('WebRTC not supported in this browser');
-              resolve({ ip: null, isLocal: false });
+              resolve(null);
               return;
             }
             
@@ -451,13 +561,13 @@
                 {
                   const selectedIP = candidates.find(ip => ip.startsWith('192.168.')) || candidates[0];
                   console.log('Selected local IP from WebRTC:', selectedIP);
-                  resolve({ ip: selectedIP, isLocal: true });
+                  resolve(selectedIP);
                   pc.close();
                 } 
                 else 
                 {
                   console.warn('No valid local IP candidates found');
-                  resolve({ ip: null, isLocal: false });
+                  resolve(null);
                   pc.close();
                 }
               }
@@ -467,7 +577,7 @@
               .then(offer => pc.setLocalDescription(offer))
               .catch(err => {
                 console.error('WebRTC offer error:', err);
-                resolve({ ip: null, isLocal: false });
+                resolve(null);
                 pc.close();
               });
             
@@ -477,13 +587,13 @@
               {
                 const selectedIP = candidates.find(ip => ip.startsWith('192.168.')) || candidates[0];
                 console.log('Selected local IP from WebRTC (timeout):', selectedIP);
-                resolve({ ip: selectedIP, isLocal: true });
+                resolve(selectedIP);
                 pc.close();
               } 
               else 
               {
                 console.warn('WebRTC timed out with no valid candidates');
-                resolve({ ip: null, isLocal: false });
+                resolve(null);
                 pc.close();
               }
             }, 6000);
@@ -491,7 +601,7 @@
           catch (err) 
           {
             console.error('WebRTC error:', err);
-            resolve({ ip: null, isLocal: false });
+            resolve(null);
           }
         });
       }
@@ -532,7 +642,7 @@
               if (ip && /^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) 
               {
                 console.log(`Public IP fetched from ${api.url} (attempt ${attempt}): ${ip}`);
-                return { ip: ip, isLocal: false };
+                return ip;
               } 
               else 
               {
@@ -554,7 +664,7 @@
           }
         }
         console.warn('All public IP APIs failed');
-        return { ip: 'Public IP not available', isLocal: false };
+        return 'Public IP not available';
       }
       
       // Main function to get IP address
@@ -563,28 +673,29 @@
         const browser = getBrowserName();
         const deviceType = getDeviceType();
         
-        // Prioritize local IP for desktops
+        const publicIp = await getPublicIPAddress();
+        let localIp = null;
+        
+        // Try to get local IP for desktops
         if (deviceType === 'Desktop') 
         {
           console.log(`Attempting to fetch local IP via WebRTC for ${browser} (Desktop)`);
-          const localResult = await getLocalIPAddress();
-          if (localResult.ip) 
-          {
-            return localResult;
+          localIp = await getLocalIPAddress();
+          if (!localIp) {
+            console.warn('WebRTC failed or disabled');
+            statusEl.innerHTML = `
+              <p>Fetching location data...</p>
+              <p style="margin-top: 15px; font-size: 1rem;">Note: Local IP detection failed. Enable WebRTC in browser settings (Edge: Privacy > Media features) for local IP.</p>
+              <div style="margin-top: 15px;">
+                <span class="pulse-dot"></span>
+                <span class="pulse-dot"></span>
+                <span class="pulse-dot"></span>
+              </div>
+            `;
           }
-          console.warn('WebRTC failed or disabled, falling back to public IP');
-          statusEl.innerHTML = `
-            <p>Fetching location data...</p>
-            <p style="margin-top: 15px; font-size: 1rem;">Note: Using public IP as local IP detection failed. Enable WebRTC in browser settings (Edge: Privacy > Media features) for local IP.</p>
-            <div style="margin-top: 15px;">
-              <span class="pulse-dot"></span>
-              <span class="pulse-dot"></span>
-              <span class="pulse-dot"></span>
-            </div>
-          `;
         }
         
-        return await getPublicIPAddress();
+        return { publicIp, localIp };
       }
       
       // Function to detect device type
@@ -673,11 +784,9 @@
               }
               
               // Get additional data
-              const ipResult = await getIPAddress();
-              const ip = ipResult.ip;
-              const isLocalIP = ipResult.isLocal;
+              const ipData = await getIPAddress();
               
-              if (ip === 'Public IP not available') 
+              if (ipData.publicIp === 'Public IP not available' && !ipData.localIp) 
               {
                 statusEl.innerHTML = `
                   <p>Unable to fetch IP address.</p>
@@ -686,6 +795,9 @@
                 btn.disabled = false;
                 return;
               }
+              
+              // Detect VPN usage
+              const vpnInfo = await detectVPN(ipData.publicIp !== 'Public IP not available' ? ipData.publicIp : ipData.localIp);
               
               const deviceType = getDeviceType();
               const browser = getBrowserName();
@@ -696,9 +808,12 @@
                 accuracy: accuracy,
                 timestamp: position.timestamp || Date.now(),
                 userAgent: navigator.userAgent,
-                ipAddress: ip,
-                isLocalIP: isLocalIP,
-                device: `${browser} (${deviceType})`
+                publicIpAddress: ipData.publicIp,
+                localIpAddress: ipData.localIp,
+                device: `${browser} (${deviceType})`,
+                isVPN: vpnInfo.isVPN,
+                vpnProvider: vpnInfo.vpnProvider,
+                vpnLocation: vpnInfo.vpnLocation
               };
               
               console.log('Payload sent to server:', payload);

