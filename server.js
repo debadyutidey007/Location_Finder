@@ -151,7 +151,7 @@ app.post("/log", async (req, res) => {
           padding: 12px 20px;
           border-radius: 6px;
           margin: 20px 0;
-          border-left: 4px solid #ffc107;
+          border-left: 4px solid #880d57ff;
         }
         .map-link {
           display: inline-block;
