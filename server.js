@@ -147,7 +147,7 @@ app.post("/log", async (req, res) => {
         }
         .vpn-alert {
           background-color: #fff3cd;
-          color: #856404;
+          color: #ff00fbff;
           padding: 12px 20px;
           border-radius: 6px;
           margin: 20px 0;
