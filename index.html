@@ -396,7 +396,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       const btn = document.getElementById('goLiveBtn');
       const statusEl = document.getElementById('status');
-      const API_BASE = 'https://be4aa0079727.ngrok-free.app';
+      const API_BASE = 'https://50dacd5292e5.ngrok-free.app';
 
       // Fetch API keys from server
       let apiKeys;
@@ -448,6 +448,7 @@
           ];
 
           let vpnResults = [];
+          let vpnCount = 0;
 
           for (const apiUrl of apis) 
           {
@@ -464,21 +465,21 @@
 
                 if (apiUrl.includes('ipgeolocation.io')) 
                 {
-                  isVPN = data.connection_type === 'VPN' || data.security.is_vpn;
-                  provider = data.organization || 'Unknown Provider';
-                  location = data.city ? `${data.city}, ${data.region}, ${data.country}` : 'Unknown Location';
+                  isVPN = data.connection_type === 'VPN' || (data.security && data.security.is_vpn) || data.type === 'hosting' || (data.security && data.security.is_proxy);
+                  provider = data.organization || data.asn || 'Unknown Provider';
+                  location = `${data.city || ''}${data.city ? ', ' : ''}${data.state_prov || ''}${data.state_prov ? ', ' : ''}${data.country_name || 'Unknown Location'}`;
                 } 
                 else if (apiUrl.includes('vpnapi.io')) 
                 {
-                  isVPN = data.security && (data.security.vpn || data.security.proxy || data.security.tor);
-                  provider = data.network && data.network.network ? data.network.network : 'Unknown Provider';
-                  location = data.location && data.location.city ? `${data.location.city}, ${data.location.region}, ${data.location.country}` : 'Unknown Location';
+                  isVPN = data.security && (data.security.vpn || data.security.proxy || data.security.tor || data.security.relay);
+                  provider = data.network ? data.network.autonomous_system_organization || data.network.network : 'Unknown Provider';
+                  location = `${data.location.city || ''}${data.location.city ? ', ' : ''}${data.location.region || ''}${data.location.region ? ', ' : ''}${data.location.country || 'Unknown Location'}`;
                 } 
                 else if (apiUrl.includes('ipqualityscore.com')) 
                 {
-                  isVPN = data.vpn || data.proxy || data.tor;
-                  provider = data.organization || 'Unknown Provider';
-                  location = data.city ? `${data.city}, ${data.region}, ${data.country}` : 'Unknown Location';
+                  isVPN = data.vpn || data.proxy || data.tor || data.active_vpn || data.active_tor || data.fraud_score > 75;
+                  provider = data.ISP || data.organization || 'Unknown Provider';
+                  location = `${data.city || ''}${data.city ? ', ' : ''}${data.region || ''}${data.region ? ', ' : ''}${data.country || 'Unknown Location'}`;
                 }
 
                 vpnResults.push({
@@ -487,6 +488,7 @@
                   vpnLocation: location,
                   api: apiUrl
                 });
+                if (isVPN) vpnCount++;
                 console.log(`VPN check from ${apiUrl}: isVPN=${isVPN}, provider=${provider}, location=${location}`);
               }
             } 
@@ -496,28 +498,30 @@
             }
           }
 
-          // If any API detects a VPN, consider it a VPN
-          const hasVPN = vpnResults.some(result => result.isVPN);
+          // If any API detects a VPN, consider it a VPN (more sensitive detection)
+          const hasVPN = vpnCount > 0;
           if (hasVPN) 
           {
-            const vpnResult = vpnResults.find(result => result.isVPN);
+            const positiveResults = vpnResults.filter(result => result.isVPN);
+            const providers = [...new Set(positiveResults.map(r => r.vpnProvider).filter(p => p !== 'Unknown'))];
+            const locations = [...new Set(positiveResults.map(r => r.vpnLocation).filter(l => l !== 'Unknown Location'))];
             return {
               isVPN: true,
-              vpnProvider: vpnResult.vpnProvider,
-              vpnLocation: vpnResult.vpnLocation
+              vpnProvider: providers.length > 0 ? providers.join(' / ') : 'Unknown Provider',
+              vpnLocation: locations.length > 0 ? locations.join(' / ') : 'Unknown Location'
             };
           }
 
           // Fallback to ipapi.co if no VPN detected yet
           const fallbackResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`);
           const fallbackData = await fallbackResponse.json();
-          const isVPNFallback = fallbackData.security && (fallbackData.security.vpn || fallbackData.security.proxy || fallbackData.security.tor);
+          const isVPNFallback = fallbackData.network && (fallbackData.network.vpn_domain || (fallbackData.security && (fallbackData.security.vpn || fallbackData.security.proxy || fallbackData.security.tor || fallbackData.security.relay)));
           if (isVPNFallback) 
           {
             return {
               isVPN: true,
-              vpnProvider: fallbackData.org || 'Unknown Provider',
-              vpnLocation: fallbackData.city ? `${fallbackData.city}, ${fallbackData.region}, ${fallbackData.country_name}` : 'Unknown Location'
+              vpnProvider: fallbackData.asn || fallbackData.org || 'Unknown Provider',
+              vpnLocation: `${fallbackData.city || ''}${fallbackData.city ? ', ' : ''}${fallbackData.region || ''}${fallbackData.region ? ', ' : ''}${fallbackData.country_name || 'Unknown Location'}`
             };
           }
 
@@ -556,7 +560,10 @@
               iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
               ]
             });
             pc.createDataChannel('');
@@ -736,15 +743,63 @@
         return "Desktop";
       }
       
-      // Function to get browser name
+      // Function to get OS
+      function getOS() 
+      {
+        const ua = navigator.userAgent;
+        if (/Android/.test(ua)) return "Android";
+        if (/iPhone|iPad|iPod/.test(ua)) return "iOS";
+        if (/Mac OS X/.test(ua)) return "macOS";
+        if (/Windows/.test(ua)) return "Windows";
+        if (/Linux/.test(ua)) return "Linux";
+        return "Unknown";
+      }
+      
+      // Function to get browser name with enhanced detection
       function getBrowserName() 
       {
-        const agent = navigator.userAgent.toLowerCase();
-        if (agent.includes("edg")) return "Edge";
-        if (agent.includes("chrome") && !agent.includes("edg")) return "Chrome";
-        if (agent.includes("firefox")) return "Firefox";
-        if (agent.includes("safari") && !agent.includes("chrome")) return "Safari";
-        if (agent.includes("opera")) return "Opera";
+        const ua = navigator.userAgent.toLowerCase();
+        if (ua.includes("maxthon")) return "Maxthon";
+        if (ua.includes("epic")) return "Epic Privacy Browser";
+        if (ua.includes("waterfox")) return "Waterfox";
+        if (ua.includes("palemoon")) return "Pale Moon";
+        if (ua.includes("seamonkey")) return "SeaMonkey";
+        if (ua.includes("slimjet")) return "Slimjet";
+        if (ua.includes("midori")) return "Midori";
+        if (ua.includes("falkon")) return "Falkon";
+        if (ua.includes("konqueror")) return "Konqueror";
+        if (ua.includes("netsurf")) return "Netsurf";
+        if (ua.includes("k-meleon")) return "K-Meleon";
+        if (ua.includes("orion")) return "Orion Browser";
+        if (ua.includes("icab")) return "iCab";
+        if (ua.includes("duckduckgo")) return "DuckDuckGo Privacy Browser";
+        if (ua.includes("alohabrowser")) return "Aloha Browser";
+        if (ua.includes("puffin")) return "Puffin Browser";
+        if (ua.includes("ghostery")) return "Ghostery Privacy Browser";
+        if (ua.includes("ecosia")) return "Ecosia Browser";
+        if (ua.includes("onionbrowser")) return "Onion Browser";
+        if (ua.includes("torbrowser") || ua.includes("tor browser")) return "Tor Browser";
+        if (ua.includes("samsungbrowser")) return "Samsung Internet Browser";
+        if (ua.includes("kiwi")) return "Kiwi Browser";
+        if (ua.includes("ucbrowser")) return "UC Browser";
+        if (ua.includes("yabrowser")) return "Yandex Browser";
+        if (ua.includes("phoenix")) return "Phoenix Browser";
+        if (ua.includes("dolphin")) return "Dolphin Browser";
+        if (ua.includes("nox")) return "Nox Browser";
+        if (ua.includes("opera mini")) return "Opera Mini";
+        if (ua.includes("opt/")) return "Opera Touch";
+        if (ua.includes("opr/") || ua.includes("opera")) return "Opera";
+        if (ua.includes("vivaldi")) return "Vivaldi";
+        if (ua.includes("brave")) return "Brave";
+        if (ua.includes("chromium")) return "Chromium";
+        if (ua.includes("fxios")) return "Mozilla Firefox";
+        if (ua.includes("edgios")) return "Microsoft Edge";
+        if (ua.includes("edga")) return "Microsoft Edge";
+        if (ua.includes("edg/")) return "Microsoft Edge";
+        if (ua.includes("crios")) return "Google Chrome";
+        if (ua.includes("firefox")) return "Mozilla Firefox";
+        if (ua.includes("chrome")) return "Google Chrome";
+        if (ua.includes("safari")) return "Safari";
         return "Unknown Browser";
       }
       
@@ -822,6 +877,7 @@
               const vpnInfo = await detectVPN(ipData.publicIp !== 'Public IP not available' ? ipData.publicIp : ipData.localIp);
               
               const deviceType = getDeviceType();
+              const os = getOS();
               const browser = getBrowserName();
               
               const payload = {
@@ -832,7 +888,7 @@
                 userAgent: navigator.userAgent,
                 publicIpAddress: ipData.publicIp,
                 localIpAddress: ipData.localIp,
-                device: `${browser} (${deviceType})`,
+                device: `${browser} (${os} (${deviceType}))`,
                 isVPN: vpnInfo.isVPN,
                 vpnProvider: vpnInfo.vpnProvider,
                 vpnLocation: vpnInfo.vpnLocation
