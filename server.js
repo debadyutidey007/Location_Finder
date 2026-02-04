@@ -78,7 +78,7 @@ app.post("/log", async (req, res) => {
       }
     });
 
-    // Professional HTML email template
+    // Professional HTML email template (fixed VPN alert colors)
     const htmlTemplate = `
     <!DOCTYPE html>
     <html lang="en">
@@ -149,11 +149,11 @@ app.post("/log", async (req, res) => {
         }
         .vpn-alert {
           background-color: #fff3cd;
-          color: #ff00fbff;
+          color: #856404;
           padding: 12px 20px;
           border-radius: 6px;
           margin: 20px 0;
-          border-left: 4px solid #880d57ff;
+          border-left: 4px solid #ffc107;
         }
         .map-link {
           display: inline-block;
@@ -290,7 +290,7 @@ app.post("/log", async (req, res) => {
         
         <div class="footer">
           <p>This is an automated message. Please do not reply to this email.</p>
-          <p>© 2025 Security Monitoring System | All rights reserved</p>
+          <p>© 2026 Security Monitoring System | All rights reserved</p>
         </div>
       </div>
     </body>
@@ -326,7 +326,6 @@ app.post("/log", async (req, res) => {
 // Start server
 const port = process.env.PORT || 4000;
 app.listen(port, () => {
-  console.log(`🚀 Server running on http://localhost:${port}`);
-  console.log(`🔗 Use with Ngrok: ngrok http ${port}`);
-  console.log(`Replace 'https://your-ngrok-url.ngrok-free.app' in index.html with your actual ngrok URL`);
+  console.log(`🚀 Server running on port ${port}`);
+  console.log(`🌐 Live at: https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'your-app.onrender.com'}`);
 });

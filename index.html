@@ -396,7 +396,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       const btn = document.getElementById('goLiveBtn');
       const statusEl = document.getElementById('status');
-      const API_BASE = 'https://577ec59f26f1.ngrok-free.app';
+      const API_BASE = '';   // ← Changed to relative URL for Render deployment (was ngrok)
 
       // Fetch API keys from server
       let apiKeys;
