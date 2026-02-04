@@ -1,3 +1,6 @@
 .env*
 .history/
 node_modules/
+Ghost_Tracer.py
+venv/
+__pycache__/

